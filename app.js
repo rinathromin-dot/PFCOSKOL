@@ -76,6 +76,7 @@ function labelMobileCells(row, labels) {
 }
 
 function renderStoreSummary() {
+  function renderStoreSummary() {
   const groups = summarizeStores(rows);
   const format = new Intl.NumberFormat('ru-RU');
   $('store-summary-status').textContent = groups.length
@@ -86,21 +87,57 @@ function renderStoreSummary() {
   const body = document.createDocumentFragment();
   for (const group of groups) {
     const tr = document.createElement('tr');
+    
+    // Название магазина (кнопка перехода)
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'stock-map-link';
     button.textContent = group.name;
-    button.addEventListener('click', () => {
-      showStoreStock(group.key);
-    });
+    button.addEventListener('click', () => showStoreStock(group.key));
     tr.insertCell().append(button);
+    
+    // Цифры
     for (const count of [group.locations.size, group.articles.size, group.units]) {
       tr.insertCell().textContent = format.format(count);
     }
-    labelMobileCells(tr, ['', 'МХ с товаром', 'Уникальных НМ', 'Всего штук']);
+    
+    // Кнопка выгрузки
+    const exportBtn = document.createElement('button');
+    exportBtn.type = 'button';
+    exportBtn.className = 'secondary';
+    exportBtn.textContent = 'Выгрузить';
+    exportBtn.style.marginLeft = '8px';
+    exportBtn.style.padding = '4px 10px';
+    exportBtn.style.fontSize = '0.85rem';
+    exportBtn.addEventListener('click', () => exportStoreByKey(group.key, group.name));
+    tr.insertCell().append(exportBtn);
+    
+    labelMobileCells(tr, ['', 'МХ с товаром', 'Уникальных НМ', 'Всего штук', '']);
     body.append(tr);
   }
   $('store-summary-rows').replaceChildren(body);
+}
+
+function exportStoreByKey(key, name) {
+  const filtered = rows.filter(row => row[1] === 'С товаром' && storeKey(row) === key);
+  if (!filtered.length) {
+    status.textContent = 'Нет данных по магазину «' + name + '».';
+    return;
+  }
+  const headers = ['МХ', 'Баркод', 'Название', 'Количество', 'Артикул WB', 'Магазин WB'];
+  const data = filtered.map(row => [
+    row[0], row[2], row[3], row[4], row[5], storeName(row)
+  ]);
+  const csv = [headers, ...data]
+    .map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Остатки_${name.replace(/[^\wа-яёА-ЯЁ0-9]+/gi, '_')}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  status.textContent = `Выгружено ${filtered.length} позиций магазина «${name}».`;
 }
 
 function stockArticleLink(field) {
