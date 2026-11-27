@@ -1,0 +1,15 @@
+{
+  "id": "./",
+  "name": "ПФЦ Мониторинг",
+  "short_name": "ПФЦ",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef3f8",
+  "theme_color": "#12243b",
+  "icons": [
+    {"src": "./pfc-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "./pfc-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}

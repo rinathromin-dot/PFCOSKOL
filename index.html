@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#12243b">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./pfc-192.png">
+  <title>Остатки ПФЦ</title>
+  <link rel="stylesheet" href="style.css?v=1.0.1">
+  <script src="app.js?v=1.0.1" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="./"><span class="brand-mark" aria-hidden="true">П</span> ПФЦ Мониторинг</a>
+      <nav class="view-nav" aria-label="Разделы склада">
+        <a href="#stock-view" aria-current="page">Остатки</a>
+        <a href="#dashboard">Дашборд</a>
+        <a href="#store-summary">Сводка по магазинам</a>
+        <a href="#warehouse-map">Карта склада</a>
+        <a href="#changes">Изменения</a>
+        <a href="#settings">Настройки</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <nav class="mobile-tabs" aria-label="Разделы склада на телефоне">
+      <a href="#stock-view"><span aria-hidden="true">▤</span>Остатки</a>
+      <a href="#warehouse-map"><span aria-hidden="true">▦</span>Карта</a>
+      <a href="#dashboard"><span aria-hidden="true">▥</span>Дашборд</a>
+      <a href="#store-summary" aria-label="Сводка по магазинам"><span aria-hidden="true">▧</span>Сводка</a>
+      <a href="#changes" aria-label="Изменения остатков"><span aria-hidden="true">⇄</span>Разница</a>
+      <a href="#settings" aria-label="Настройки"><span aria-hidden="true">⚙</span>Опции</a>
+    </nav>
+    <section id="mobile-access" class="panel settings" hidden>
+      <h2>Остатки на телефоне</h2>
+      <form id="mobile-reader-form">
+        <label for="mobile-reader-url">Ссылка Apps Script чтения</label>
+        <input type="url" id="mobile-reader-url" placeholder="https://script.google.com/macros/s/…/exec" required>
+        <button type="submit">Войти и загрузить данные</button>
+      </form>
+      <p id="mobile-reader-status" role="status"></p>
+    </section>
+    <div id="stock-view" class="view">
+    <section class="overview" aria-labelledby="title">
+      <div class="overview-top">
+        <div>
+          <h1 id="title">Остатки склада</h1>
+          <p id="status" role="status">Подключитесь рабочим Google-аккаунтом.</p>
+        </div>
+        <div class="actions">
+          <button type="button" id="scan">Обновить МХ <span aria-hidden="true">↻</span></button>
+          <button type="button" id="seller-all" class="secondary" title="Поиск поставщиков по товарам в загруженных остатках">Проверить поставщиков по занятым МХ</button>
+          <button type="button" class="secondary" id="transactions-refresh">Прочитать транзакции</button>
+          <button type="button" id="retry-scan" class="secondary" hidden>Повторить проблемные МХ</button>
+          <button type="button" id="retry-save" class="secondary" hidden>Повторить запись</button>
+        </div>
+      </div>
+      <p id="progress" role="status"></p>
+      <progress id="run-progress" aria-label="Прогресс проверки МХ" hidden></progress>
+      <p id="scan-error" role="alert" hidden></p>
+      <details id="issues" hidden><summary>Проблемные МХ</summary><ul></ul></details>
+      <details id="seller-start-options">
+        <summary>Начать проверку поставщиков с артикула</summary>
+        <label for="seller-start-article">Артикул WB</label>
+        <input id="seller-start-article" inputmode="numeric">
+      </details>
+      <p id="seller-batch-status" class="seller-batch-status" role="status" hidden></p>
+      <details id="seller-batch-errors" class="seller-batch-status" hidden><summary>Проблемные артикулы</summary><ul></ul></details>
+      <div id="summary" class="summary">
+        <div id="transactions-card"><strong id="transactions-prepared">—</strong>Подготовлено к отгрузке сегодня</div>
+      </div>
+      <p id="transactions-status" class="overview-status" role="status"></p>
+    </section>
+
+    <section id="stock" class="panel inventory" hidden>
+      <div class="inventory-header">
+        <div><h2>Остатки по МХ</h2><p id="count" role="status"></p></div>
+        <div class="filters">
+          <label>Поиск по товару или МХ
+            <input id="search" type="search" placeholder="Артикул WB, баркод, название или МХ">
+          </label>
+          <label>Магазин WB
+            <select id="store-filter"><option value="">Все магазины</option></select>
+          </label>
+          <label>Состояние МХ
+            <select id="stock-filter"><option value="">Все МХ</option><option value="С товаром">С товаром</option><option value="Ничего не найдено">Пустые</option></select>
+          </label>
+        </div>
+      </div>
+      <div class="table" tabindex="0" role="region" aria-label="Таблица остатков">
+        <table><thead><tr><th>МХ</th><th>Результат</th><th>Баркод</th><th>Название</th><th>Количество</th><th>Артикул WB</th><th>Магазин WB</th><th>Проверено МСК</th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    </div>
+
+    <section id="changes" class="view" hidden aria-labelledby="changes-title">
+      <header class="overview changes-overview">
+        <h1 id="changes-title">Изменения остатков</h1>
+        <p id="changes-status" role="status">Загрузите сохранённые остатки.</p>
+        <dl id="changes-totals" class="changes-totals" aria-label="Итоги по сопоставленным МХ" hidden>
+          <div><dt>Прирост, шт.</dt><dd id="changes-gained" class="change-up"></dd></div>
+          <div><dt>Снижение, шт.</dt><dd id="changes-lost" class="change-down"></dd></div>
+          <div><dt>Чистая разница, шт.</dt><dd id="changes-net"></dd></div>
+          <div><dt>Возможные перемещения, БК</dt><dd id="changes-moves"></dd></div>
+        </dl>
+      </header>
+      <div class="panel inventory">
+        <form id="history-form" class="inventory-header" hidden>
+          <label>Режим сравнения
+            <select id="history-mode"><option value="auto">Последний полный обход</option><option value="manual">Выбрать два обхода</option></select>
+          </label>
+          <div id="history-selection" class="filters" hidden>
+            <label>Ранний обход (МСК)<select id="history-from"></select></label>
+            <label>Поздний обход (МСК)<select id="history-to"></select></label>
+          </div>
+        </form>
+        <p id="changes-missing" class="changes-gap" hidden></p>
+        <div id="changes-tools" class="inventory-header" hidden>
+          <div class="filters">
+            <label>Поиск<input id="changes-search" type="search" placeholder="Баркод, название или МХ"></label>
+            <label>Тип изменения
+              <select id="changes-kind">
+                <option value="">Все изменения</option><option value="gain">Прирост</option>
+                <option value="loss">Снижение</option><option value="move">Возможное перемещение</option>
+              </select>
+            </label>
+          </div>
+          <button type="button" id="changes-export" class="secondary">Скачать CSV</button>
+          <p id="changes-visible" role="status"></p>
+        </div>
+        <div id="changes-table" class="table" tabindex="0" role="region" aria-label="Изменения по баркодам" hidden>
+          <table><thead><tr><th>Баркод</th><th>Название</th><th>Было</th><th>Стало</th><th>Разница</th><th>Изменения по МХ</th></tr></thead><tbody id="changes-rows"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="dashboard" class="view" hidden aria-labelledby="dashboard-title">
+      <header class="overview overview-top">
+        <h1 id="dashboard-title">Дашборд склада</h1>
+        <div class="actions">
+          <button id="dashboard-edit" type="button" aria-pressed="false" aria-controls="dashboard-modules">Настроить</button>
+          <button id="dashboard-reset" class="secondary" type="button" hidden>Сбросить раскладку</button>
+        </div>
+      </header>
+      <p id="dashboard-layout-status" class="dashboard-sr-only" role="status"></p>
+      <div class="dashboard-grid" id="dashboard-modules">
+        <section class="panel dashboard-panel dashboard-capacity" data-dashboard-module="capacity">
+          <h2>Загрузка склада</h2>
+          <p id="dashboard-zones-status">Загрузите сохранённые остатки и справочник МХ.</p>
+          <div id="dashboard-zones"></div>
+        </section>
+        <section class="panel dashboard-panel dashboard-ranking" data-dashboard-module="ranking">
+          <div class="dashboard-heading">
+            <h2>Остатки по магазинам</h2>
+            <label>Показатель <select id="dashboard-metric"><option value="units">Штуки</option><option value="locations">МХ</option></select></label>
+          </div>
+          <p id="dashboard-stores-status">Загрузите сохранённые остатки.</p>
+          <div id="dashboard-stores"></div>
+          <a href="#store-summary">Все магазины</a>
+        </section>
+      <section class="panel dashboard-panel dashboard-trend dashboard-shipments" data-dashboard-module="shipments">
+        <div class="dashboard-heading">
+          <h2>Подготовлено к отгрузке по дням</h2>
+          <label>Период <select id="shipment-period"><option value="7">7 дней</option><option value="30">30 дней</option></select></label>
+        </div>
+        <p id="shipment-status" role="status">Данные появятся после чтения транзакций WB.</p>
+        <dl id="shipment-totals" class="shipment-kpis" aria-label="Итоги за выбранный период" hidden></dl>
+        <div class="shipment-legend">
+          <span>За день</span><span>Скользящее среднее (до 7 дней)</span>
+        </div>
+        <div id="shipment-chart"></div>
+        <p id="shipment-point" role="status"></p>
+      </section>
+      <section class="panel dashboard-panel dashboard-trend" data-dashboard-module="trend">
+        <div class="dashboard-heading">
+          <h2>Динамика остатков</h2>
+          <label>Период <select id="trend-period"><option value="7">7 дней</option><option value="30">30 дней</option></select></label>
+          <label>Показатель <select id="trend-metric"><option value="units">Штуки</option><option value="occupied">Занятые МХ</option></select></label>
+        </div>
+        <p id="trend-status">Загрузите историю обходов.</p>
+        <div id="trend-chart" hidden>
+          <div class="trend-plot" role="group" aria-label="Точки графика по обходам"></div>
+          <div class="trend-axis"></div>
+          <p id="trend-point-value" role="status"></p>
+        </div>
+        <div id="trend-comparison" hidden>
+          <div class="filters">
+            <label>Ранний обход (МСК) <select id="trend-from"></select></label>
+            <label>Поздний обход (МСК) <select id="trend-to"></select></label>
+          </div>
+          <p id="trend-result" role="status"></p>
+          <button id="trend-open" class="secondary" type="button">Открыть в «Изменениях»</button>
+        </div>
+      </section>
+      </div>
+    </section>
+
+    <section id="store-summary" class="view" hidden aria-labelledby="store-summary-title">
+      <header class="overview">
+        <h1 id="store-summary-title">Сводка по магазинам</h1>
+        <p id="store-summary-status" class="overview-status" role="status">Загрузите сохранённые остатки.</p>
+      </header>
+      <div id="store-summary-table" class="panel table" tabindex="0" role="region" aria-label="Остатки по магазинам" hidden>
+        <table><thead><tr><th scope="col">Магазин WB</th><th scope="col">МХ с товаром</th><th scope="col">Уникальных НМ</th><th scope="col">Всего штук</th></tr></thead>
+          <tbody id="store-summary-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="warehouse-map" class="view" hidden aria-labelledby="map-title">
+      <header class="overview"><h1 id="map-title">Карта склада</h1></header>
+      <div class="panel settings page-content">
+        <div class="map-tools">
+          <label>Зона <select id="map-zone"><option value="racks">Стеллажи</option><option value="pallets">Паллетные места</option></select></label>
+          <form id="map-find"><label>Найти МХ <input id="map-address" placeholder="02.01.03" required></label><button class="secondary">Найти</button></form>
+        </div>
+        <p id="map-status" role="status">Загрузите остатки, чтобы увидеть занятость.</p>
+        <ul class="map-legend"><li><span class="occupied"></span>С товаром</li><li><span class="empty"></span>Пусто</li><li><span class="unknown"></span>Не проверено</li></ul>
+        <div id="map-grid" class="map-grid"></div>
+        <dialog id="map-details" aria-labelledby="map-cell-title" aria-describedby="map-cell-status">
+          <header class="map-detail-header">
+            <div>
+              <h2 id="map-cell-title"></h2>
+              <p id="map-cell-status"></p>
+              <p id="map-cell-totals" hidden></p>
+            </div>
+            <form method="dialog"><button class="secondary">Закрыть</button></form>
+          </header>
+          <p id="map-cell-empty" hidden></p>
+          <div id="map-products-table" class="table" tabindex="0" role="region" aria-label="Товары в ячейке" hidden>
+            <table>
+              <thead><tr><th scope="col">Название</th><th scope="col">Баркод</th><th scope="col">Артикул WB</th><th scope="col">Магазин WB</th><th scope="col">Количество</th></tr></thead>
+              <tbody id="map-products"></tbody>
+            </table>
+          </div>
+        </dialog>
+      </div>
+    </section>
+
+    <section id="settings" class="view" hidden aria-labelledby="settings-title">
+      <header class="overview"><h1 id="settings-title">Настройки</h1></header>
+      <div class="panel settings page-content">
+        <h2>Подключение</h2>
+        <details id="read-settings">
+          <summary>Чтение Google Таблицы</summary>
+          <form id="connect">
+            <label for="reader">Ссылка /exec приложения чтения</label>
+            <div class="form-row">
+              <input id="reader" type="url" required>
+              <button class="secondary">Загрузить сохранённые остатки</button>
+            </div>
+          </form>
+        </details>
+        <details id="scan-settings">
+          <summary>Настройки проверки МХ</summary>
+          <label for="writer">Ссылка /exec для записи обходов</label>
+          <input id="writer" type="url" placeholder="Прежняя ссылка записи">
+          <label for="scan-zone">Зона обхода</label>
+          <select id="scan-zone"><option value="warehouse">Все активные МХ</option><option value="racks">Активные стеллажные МХ</option><option value="pallets">Активные паллетные МХ</option><option value="custom">Указать МХ</option></select>
+          <label for="scan-addresses">Список МХ для выборочного обхода</label>
+          <textarea id="scan-addresses" rows="3" placeholder="02.01.01"></textarea>
+          <label class="scan-parallel"><input type="checkbox" id="scan-parallel"> Обход на двух вкладках WB</label>
+        </details>
+        <details>
+          <summary>Справочник МХ</summary>
+          <form id="locations-form">
+            <label>Способ ввода <select id="location-mode"><option value="single">Один МХ</option><option value="rack">Стеллаж</option><option value="pallets">Паллетный диапазон</option></select></label>
+            <label data-location-mode="single">Адрес <input id="location-single" placeholder="11.01.01"></label>
+            <div data-location-mode="rack" class="form-row" hidden>
+              <label>Стеллаж <input id="location-rack" type="number" min="2" max="99" value="11"></label>
+              <label>Полок <input id="location-shelves" type="number" min="1" max="99" value="5"></label>
+              <label>Ячеек на полку <input id="location-cells" type="number" min="1" max="99" value="3"></label>
+            </div>
+            <div data-location-mode="pallets" class="form-row" hidden>
+              <label>От номера <input id="location-first" type="number" min="1" max="999" value="351"></label>
+              <label>До номера <input id="location-last" type="number" min="1" max="999" value="370"></label>
+            </div>
+            <button type="submit" class="secondary">Предпросмотр</button>
+            <button type="button" id="locations-enable" hidden>Сохранить активными</button>
+            <button type="button" id="locations-disable" class="secondary" hidden>Отключить МХ</button>
+            <p id="locations-status" role="status"></p>
+            <p id="locations-preview" class="locations-preview" hidden></p>
+          </form>
+          <label>Найти адрес в справочнике <input id="locations-search" type="search" placeholder="11.01"></label>
+          <p id="locations-count"></p>
+          <ul id="locations-list"></ul>
+        </details>
+        <details>
+          <summary>Вставить остатки</summary>
+          <form id="import-stock">
+            <label for="stock-data">Данные из закрытой страницы Apps Script</label>
+            <textarea id="stock-data" rows="5" required autocomplete="off" spellcheck="false"></textarea>
+            <button class="secondary">Показать остатки</button>
+          </form>
+        </details>
+      </div>
+    </section>
+  </main>
+  <dialog id="seller-details" aria-labelledby="seller-title">
+    <form method="dialog"><button class="secondary">Закрыть</button></form>
+    <h2 id="seller-title">Продавец на Wildberries</h2>
+    <p id="seller-status" role="status"></p>
+    <dl id="seller-fields" hidden>
+      <dt>Магазин WB</dt><dd><a id="seller-store" target="_blank" rel="noopener noreferrer"></a></dd>
+      <dt>Продавец</dt><dd id="seller-legal"></dd>
+      <dt>Электронная почта</dt><dd id="seller-email"></dd>
+    </dl>
+  </dialog>
+</body>
+</html>
