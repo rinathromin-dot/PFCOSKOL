@@ -76,7 +76,6 @@ function labelMobileCells(row, labels) {
 }
 
 function renderStoreSummary() {
-  function renderStoreSummary() {
   const groups = summarizeStores(rows);
   const format = new Intl.NumberFormat('ru-RU');
   $('store-summary-status').textContent = groups.length
