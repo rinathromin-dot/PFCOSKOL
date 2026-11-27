@@ -1765,3 +1765,4 @@ dashboardReset.onclick = () => {
 };
 dashboardMobile.addEventListener('change', restoreDashboardLayout);
 restoreDashboardLayout();
+console.log('app.js загружен');
