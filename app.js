@@ -128,8 +128,8 @@ function exportStoreByKey(key, name) {
     row[0], row[2], row[3], row[4], row[5], storeName(row)
   ]);
   const csv = [headers, ...data]
-    .map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
-    .join('\n');
+  .map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';'))
+   .join('\n');
   const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
