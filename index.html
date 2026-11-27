@@ -7,9 +7,9 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./pfc-192.png">
   <title>Остатки ПФЦ</title>
-  <link rel="stylesheet" href="style.css?v=1.0.1">
+  <link rel="stylesheet" href="style.css?v=1.0.3">
   <script src="stock-xlsx.js?v=1.0.2" defer></script>
-  <script src="app.js?v=1.0.2" defer></script>
+  <script src="app.js?v=1.0.4" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -269,10 +269,16 @@
         <details>
           <summary>Справочник МХ</summary>
           <form id="locations-form">
-            <label>Способ ввода <select id="location-mode"><option value="single">Один МХ</option><option value="rack">Стеллаж</option><option value="pallets">Паллетный диапазон</option></select></label>
+            <label>Способ ввода <select id="location-mode"><option value="single">Один МХ</option><option value="rack">Стеллаж</option><option value="racks">Диапазон стеллажей</option><option value="pallets">Паллетный диапазон</option></select></label>
             <label data-location-mode="single">Адрес <input id="location-single" placeholder="11.01.01"></label>
             <div data-location-mode="rack" class="form-row" hidden>
-              <label>Стеллаж <input id="location-rack" type="number" min="2" max="99" value="11"></label>
+              <label>Стеллаж <input id="location-rack" type="number" min="2" max="999" value="11"></label>
+            </div>
+            <div data-location-mode="racks" class="form-row" hidden>
+              <label>От стеллажа <input id="location-rackFirst" type="number" min="2" max="999" value="50"></label>
+              <label>До стеллажа <input id="location-rackLast" type="number" min="2" max="999" value="150"></label>
+            </div>
+            <div data-location-mode="rack racks" class="form-row" hidden>
               <label>Полок <input id="location-shelves" type="number" min="1" max="99" value="5"></label>
               <label>Ячеек на полку <input id="location-cells" type="number" min="1" max="99" value="3"></label>
             </div>
@@ -301,6 +307,24 @@
       </div>
     </section>
   </main>
+  <dialog id="store-details" aria-labelledby="store-details-title">
+    <header class="store-detail-head">
+      <div><h2 id="store-details-title"></h2><p>Снижение остатков по полным обходам · МСК</p></div>
+      <form method="dialog"><button class="secondary">Закрыть</button></form>
+    </header>
+    <div class="store-detail-actions">
+      <button type="button" class="secondary" id="store-detail-stock">Открыть остатки</button>
+      <button type="button" class="secondary" id="store-detail-export">Скачать Excel</button>
+      <label>Период <select id="store-detail-period"><option value="7">7 дней</option><option value="30">30 дней</option></select></label>
+    </div>
+    <p id="store-detail-status" role="status"></p>
+    <div id="store-detail-chart" class="store-detail-chart" aria-label="Снижение остатков по дням"></div>
+    <h3 id="store-detail-date" aria-live="polite"></h3>
+    <div id="store-detail-table" class="table" hidden><table>
+      <thead><tr><th>Товар</th><th>БК</th><th>НМ</th><th>Было</th><th>Стало</th><th>Снижение</th></tr></thead>
+      <tbody id="store-detail-items"></tbody>
+    </table></div>
+  </dialog>
   <dialog id="seller-details" aria-labelledby="seller-title">
     <form method="dialog"><button class="secondary">Закрыть</button></form>
     <h2 id="seller-title">Продавец на Wildberries</h2>

@@ -84,6 +84,15 @@ function labelMobileCells(row, labels) {
 
 function renderStoreSummary() {
   const groups = summarizeStores(rows);
+  const keys = new Set(groups.map(group => group.key));
+  for (const {items} of storeDeclines) {
+    for (const [name] of items) {
+      const key = 'store:' + name;
+      if (keys.has(key)) continue;
+      keys.add(key);
+      groups.push({key, name, locations: new Set(), articles: new Set(), units: 0});
+    }
+  }
   const format = new Intl.NumberFormat('ru-RU');
   $('store-summary-status').textContent = groups.length
     ? 'Магазинов: ' + format.format(groups.filter(group => group.key !== unknownStore).length) +
@@ -98,7 +107,8 @@ function renderStoreSummary() {
     button.className = 'stock-map-link';
     button.textContent = group.name;
     button.addEventListener('click', () => {
-      showStoreStock(group.key);
+      if (group.key === unknownStore) showStoreStock(group.key);
+      else openStoreDetails(group.key, group.name);
     });
     tr.insertCell().append(button);
     for (const count of [group.locations.size, group.articles.size, group.units]) {
@@ -137,7 +147,7 @@ function renderStock() {
     const tr = document.createElement('tr');
     row.forEach((field, index) => {
       const cell = tr.insertCell();
-      if (index === 0 && /^\d{2}\.\d{2}\.\d{2,3}$/.test(field)) {
+      if (index === 0 && /^\d{2,3}\.\d{2}\.\d{2,3}$/.test(field)) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'stock-map-link';
@@ -555,6 +565,9 @@ $('history-form').addEventListener('submit', event => event.preventDefault());
 for (const field of [historyMode, historyFrom, historyTo]) field.addEventListener('change', renderHistory);
 window.addEventListener('pfc:changes', ({detail: report}) => {
   automaticReport = report;
+  storeDeclines = report?.storeDeclines ?? [];
+  renderStoreSummary();
+  if (storeDetails.open) renderStoreDetails();
   scanHistory = report?.snapshots ?? [];
   $('history-form').hidden = scanHistory.length < 2;
   if (scanHistory.length < 2) historyMode.value = 'auto';
@@ -1019,10 +1032,10 @@ showView();
 function locationAddresses(mode, fields) {
   const numeric = (value, min, max) => /^\d+$/.test(value) && Number(value) >= min && Number(value) <= max;
   if (mode === 'single') {
-    const match = fields.single.trim().match(/^(\d{2})\.(\d{2})\.(\d{2,3})$/);
-    if (!match || !numeric(match[1], 1, 99) || !numeric(match[2], 1, 99) || !numeric(match[3], 1, 999) ||
-        (match[1] === '01' && match[2] !== '01')) throw new Error('Введите МХ вида 11.01.01 или 01.01.351.');
-    return [match[1] + '.' + match[2] + '.' + addressPart(Number(match[3]))];
+    const match = fields.single.trim().match(/^(\d{2,3})\.(\d{2})\.(\d{2,3})$/);
+    if (!match || !numeric(match[1], 1, 999) || !numeric(match[2], 1, 99) || !numeric(match[3], 1, 999) ||
+        (Number(match[1]) === 1 && match[2] !== '01')) throw new Error('Введите МХ вида 11.01.01 или 01.01.351.');
+    return [addressPart(Number(match[1])) + '.' + match[2] + '.' + addressPart(Number(match[3]))];
   }
   if (mode === 'pallets') {
     if (!numeric(fields.first, 1, 999) || !numeric(fields.last, Number(fields.first), 999)) {
@@ -1031,10 +1044,21 @@ function locationAddresses(mode, fields) {
     return Array.from({length: Number(fields.last) - Number(fields.first) + 1}, (_, i) =>
       '01.01.' + addressPart(Number(fields.first) + i));
   }
-  if (!numeric(fields.rack, 2, 99) || !numeric(fields.shelves, 1, 99) || !numeric(fields.cells, 1, 99) ||
-      Number(fields.shelves) * Number(fields.cells) > 999) throw new Error('Проверьте номер стеллажа и размеры. Максимум 999 МХ за раз.');
-  return Array.from({length: Number(fields.shelves) * Number(fields.cells)}, (_, i) =>
-    [Number(fields.rack), Math.floor(i / Number(fields.cells)) + 1, i % Number(fields.cells) + 1].map(addressPart).join('.'));
+  const firstRack = mode === 'racks' ? fields.rackFirst : fields.rack;
+  const lastRack = mode === 'racks' ? fields.rackLast : fields.rack;
+  if (!numeric(firstRack, 2, 999) || !numeric(lastRack, Number(firstRack), 999) ||
+      !numeric(fields.shelves, 1, 99) || !numeric(fields.cells, 1, 99)) {
+    throw new Error('Проверьте диапазон стеллажей (2–999), число полок и ячеек (1–99).');
+  }
+  const cells = Number(fields.cells);
+  const perRack = Number(fields.shelves) * cells;
+  const total = (Number(lastRack) - Number(firstRack) + 1) * perRack;
+  if (total > 3000) throw new Error('Максимум 3000 МХ за раз.');
+  return Array.from({length: total}, (_, index) => [
+    Number(firstRack) + Math.floor(index / perRack),
+    Math.floor(index % perRack / cells) + 1,
+    index % cells + 1
+  ].map(addressPart).join('.'));
 }
 
 let locationPreview = [];
@@ -1070,18 +1094,19 @@ window.addEventListener('pfc:locations', ({detail}) => {
 $('locations-search').addEventListener('input', renderLocationCatalog);
 $('location-mode').addEventListener('change', () => {
   for (const element of document.querySelectorAll('[data-location-mode]')) {
-    element.hidden = element.dataset.locationMode !== $('location-mode').value;
+    element.hidden = !element.dataset.locationMode.split(' ').includes($('location-mode').value);
   }
 });
 $('locations-form').addEventListener('input', clearLocationPreview);
 $('locations-form').onsubmit = event => {
   event.preventDefault();
   try {
-    const fields = Object.fromEntries(['single','rack','shelves','cells','first','last']
+    const fields = Object.fromEntries(['single','rack','rackFirst','rackLast','shelves','cells','first','last']
       .map(key => [key, $('location-' + key).value]));
     locationPreview = locationAddresses($('location-mode').value, fields);
     $('locations-status').textContent = 'Адресов в списке: ' + locationPreview.length;
-    $('locations-preview').textContent = locationPreview.join(', ');
+    $('locations-preview').textContent = locationPreview.length <= 30 ? locationPreview.join(', ') :
+      locationPreview.slice(0, 15).join(', ') + ' … ' + locationPreview.slice(-3).join(', ');
     for (const id of ['locations-preview', 'locations-enable', 'locations-disable']) $(id).hidden = false;
   } catch (error) {
     clearLocationPreview();
@@ -1737,3 +1762,91 @@ dashboardReset.onclick = () => {
 };
 dashboardMobile.addEventListener('change', restoreDashboardLayout);
 restoreDashboardLayout();
+
+let storeDeclines = [];
+let detailStore;
+const storeDetails = $('store-details');
+const storeDate = new Intl.DateTimeFormat('ru-RU', {day: '2-digit', month: '2-digit', timeZone: 'UTC'});
+const storeNumber = new Intl.NumberFormat('ru-RU');
+
+function openStoreDetails(key, name) {
+  detailStore = {key, name};
+  $('store-details-title').textContent = name;
+  const hasStock = rows.some(row => row[1] === 'С товаром' && storeKey(row) === key);
+  $('store-detail-stock').disabled = !hasStock;
+  $('store-detail-export').disabled = !hasStock;
+  renderStoreDetails();
+  storeDetails.showModal();
+}
+
+function renderStoreDetails() {
+  const period = Number($('store-detail-period').value);
+  const latest = storeDeclines.at(-1)?.day;
+  const chart = $('store-detail-chart');
+  chart.replaceChildren();
+  $('store-detail-date').textContent = '';
+  $('store-detail-table').hidden = true;
+  if (latest === undefined) {
+    $('store-detail-status').textContent = 'Для графика нужны полные обходы за два разных дня.';
+    return;
+  }
+  const byDay = new Map(storeDeclines.map(entry => [entry.day, entry]));
+  const days = Array.from({length: period}, (_, index) => {
+    const day = latest - period + 1 + index;
+    const entry = byDay.get(day);
+    const items = entry?.items.filter(([store]) => store === detailStore.name) ?? [];
+    const total = items.reduce((sum, item) => sum + item[4] - item[5], 0);
+    return {day, entry, items, total};
+  });
+  const max = Math.max(1, ...days.map(day => day.total));
+  const sum = days.reduce((total, day) => total + day.total, 0);
+  $('store-detail-status').textContent = storeNumber.format(sum) +
+    ' шт. снижения за показанные интервалы · пропуск означает отсутствие сравнения';
+  chart.style.setProperty('--days', period);
+  const buttons = new Map();
+  function select(day) {
+    for (const [item, button] of buttons) button.setAttribute('aria-pressed', String(item === day));
+    $('store-detail-date').textContent = day.entry.from + ' → ' + day.entry.to + ' · ' +
+      storeNumber.format(day.total) + ' шт. снижения';
+    const body = $('store-detail-items');
+    body.replaceChildren();
+    for (const [, barcode, article, name, was, now] of day.items.sort((a, b) => (b[4] - b[5]) - (a[4] - a[5]))) {
+      const row = body.insertRow();
+      for (const value of [name, barcode, article, was, now, '−' + (was - now)]) {
+        row.insertCell().textContent = value;
+      }
+    }
+    $('store-detail-table').hidden = !day.items.length;
+  }
+  for (const [index, day] of days.entries()) {
+    const date = storeDate.format(day.day * 86400000);
+    const column = document.createElement('div');
+    column.className = 'store-detail-column';
+    const label = document.createElement('span');
+    label.textContent = period === 7 || index % 7 === 0 || index === period - 1 ? date : '';
+    if (day.entry) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.title = date + ' · ' + storeNumber.format(day.total) + ' шт.';
+      button.setAttribute('aria-label', button.title);
+      button.style.setProperty('--bar', (day.total / max * 100) + '%');
+      button.addEventListener('click', () => select(day));
+      if (day.entry.day - day.entry.fromDay > 1) button.dataset.interval = '';
+      buttons.set(day, button);
+      column.append(button);
+    }
+    column.append(label);
+    chart.append(column);
+  }
+  select(days.at(-1));
+}
+
+$('store-detail-period').addEventListener('change', renderStoreDetails);
+$('store-detail-stock').addEventListener('click', () => {
+  storeDetails.close();
+  showStoreStock(detailStore.key);
+});
+$('store-detail-export').addEventListener('click', () => {
+  const stock = rows.filter(row => row[1] === 'С товаром' && storeKey(row) === detailStore.key);
+  if (stock.length) window.downloadStockXlsx(stock, detailStore.name);
+});
