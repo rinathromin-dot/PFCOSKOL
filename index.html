@@ -8,7 +8,8 @@
   <link rel="apple-touch-icon" href="./pfc-192.png">
   <title>Остатки ПФЦ</title>
   <link rel="stylesheet" href="style.css?v=1.0.1">
-  <script src="app.js?v=1.0.1" defer></script>
+  <script src="stock-xlsx.js?v=1.0.2" defer></script>
+  <script src="app.js?v=1.0.2" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -87,6 +88,7 @@
           <label>Состояние МХ
             <select id="stock-filter"><option value="">Все МХ</option><option value="С товаром">С товаром</option><option value="Ничего не найдено">Пустые</option></select>
           </label>
+          <button id="export-store-stock" type="button" class="secondary" hidden>Скачать Excel</button>
         </div>
       </div>
       <div class="table" tabindex="0" role="region" aria-label="Таблица остатков">
